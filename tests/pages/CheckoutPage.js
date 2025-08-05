@@ -153,7 +153,19 @@ class CheckoutPage extends BasePage {
 
   async waitForDiscountApplied() {
     await this.waitForLoadState();
-    await this.waitForTimeout(2000);
+    await this.waitForTimeout(3000);
+  }
+
+  async waitForDiscountResponse() {
+    return this.executeWithErrorHandling(async () => {
+      // Wait for either discount chip or error message
+      await Promise.race([
+        this.discountChip.waitFor({ state: "visible", timeout: 15000 }),
+        this.page
+          .getByText(/invalid|error|not found/i)
+          .waitFor({ state: "visible", timeout: 15000 }),
+      ]);
+    }, "Waited for discount response");
   }
 
   async applyDiscountCode(code = "MUFFIN", expectedDiscount) {
@@ -163,17 +175,64 @@ class CheckoutPage extends BasePage {
       await this.discountInput.waitFor({ state: "visible", timeout: 10000 });
       await this.discountInput.click();
       await this.discountInput.fill(code);
+
+      // Click apply and wait for the button to be disabled (API call started)
       await this.applyDiscountButton.click();
 
-      // Wait for discount to be applied
-      await this.discountChip.waitFor({ state: "visible", timeout: 10000 });
+      // Wait for Apply button to be disabled (processing state)
+      await this.page.waitForFunction(
+        () => {
+          const applyButton = document.querySelector(
+            '[data-qa="checkout-cartsummary-button-discountapply"]'
+          );
+          return applyButton && applyButton.disabled;
+        },
+        { timeout: 5000 }
+      );
 
-      // Verify discount value
-      await this.waitForDiscountApplied();
-      const actualDiscount = await this.discountValue.textContent();
-      const expectedFormatted = `-€${expectedDiscount.toFixed(2)}`;
+      // Wait for either discount chip to appear (success) or button to be re-enabled (error)
+      try {
+        // Wait for discount chip to appear (success case)
+        await this.discountChip.waitFor({ state: "visible", timeout: 15000 });
 
-      await expect(this.discountValue).toContainText(expectedFormatted);
+        // Verify discount value
+        const actualDiscount = await this.discountValue.textContent();
+        const expectedFormatted = `-€${expectedDiscount.toFixed(2)}`;
+        await expect(this.discountValue).toContainText(expectedFormatted);
+      } catch (error) {
+        // If discount chip didn't appear, check if button was re-enabled (error case)
+        const buttonReEnabled = await this.page
+          .waitForFunction(
+            () => {
+              const applyButton = document.querySelector(
+                '[data-qa="checkout-cartsummary-button-discountapply"]'
+              );
+              return applyButton && !applyButton.disabled;
+            },
+            { timeout: 10000 }
+          )
+          .catch(() => false);
+
+        if (buttonReEnabled) {
+          // Button was re-enabled, check for specific error message
+          const errorMessage = this.page.locator("#discountCode-messages");
+          const hasError = await errorMessage.isVisible().catch(() => false);
+
+          if (hasError) {
+            const errorText = await errorMessage.textContent();
+            throw new Error(`Discount code "${code}" is invalid: ${errorText}`);
+          } else {
+            throw new Error(
+              `Discount code "${code}" was rejected but no error message found`
+            );
+          }
+        } else {
+          // Button is still disabled, might be a timeout or other issue
+          throw new Error(
+            `Discount application timed out or failed for code "${code}"`
+          );
+        }
+      }
     }, "Applied discount code");
   }
 
