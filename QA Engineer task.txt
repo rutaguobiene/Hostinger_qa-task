@@ -1,0 +1,164 @@
+# QA Engineer Task Documentation
+
+// =============================================================================
+// 1. EXPLORATION TASK
+// =============================================================================
+
+## 1.1 Critical User Flows Analysis
+
+### Service Purchase & Website Launch Flow
+Most critical flow connecting marketing → conversion → product onboarding. It starts from the homepage or landing page and ends with the user having a working website.
+**Why Critical**: Foundation of revenue, user onboarding, and long-term retention
+
+**Steps**:
+1. User lands on Hostinger.com and clicks "Start Now"
+2. Chooses a hosting or website builder plan
+3. Clicks Continue, proceeds to register or log in
+4. Enters payment details and completes purchase
+5. Gets redirected to Horizons (Website Builder)
+6. Selects a template
+7. Customizes content
+8. Publishes website
+
+
+### Domain Management Flow
+**Used by**: Customers with existing or new custom domains
+**Why Critical**: Missteps break site's live presence, cause downtime, or confuse users
+
+**Steps**:
+1. User searches for a domain from dashboard or domain search
+2. Registers the domain and assigns it to their account
+3. Configures DNS settings to point to the right site (e.g., A/CNAME records)
+4. (Optionally) Sets up email routing or redirects
+5. Later: renews domain registration
+
+
+### Account & Subscription Management Flow
+**Applies to**: Both new and returning customers
+**Why Critical**: Maintains user trust and control. Bugs damage credibility
+
+**Steps**:
+1. User registers/logs in
+2. Views or updates personal details (name, password, language, etc.)
+3. Adds/removes payment methods, handles billing
+4. Manages subscriptions: upgrades, downgrades, cancelations
+5. Accesses Help Center or contacts Support via chat/ticket
+
+
+## 1.2 Bug Reports
+
+### Bug 1: Unable to Add Free Domain to Cart
+**Issue**: Free domain registration button becomes inactive
+
+**Steps to Reproduce**:
+1. Go to https://www.hostinger.com/free-domain
+2. Enter domain name "my-deepest-desire.org"
+3. Click on "Make it yours" button
+
+**Actual**: Button "Make it yours" becomes grey and inactive, user stays on the same page
+**Expected**: User should be able to add this item to the cart
+
+### Bug 2: Able to Sign Up with Invalid Email
+**Issue**: System accepts invalid email format during registration
+
+**Steps to Reproduce**:
+1. Go to https://www.hostinger.com/horizons
+2. Click on My Account link
+3. Choose Sign up option
+4. Enter email text "test@test.eu"
+5. Enter valid password consisting of at least 8 characters ("2930irkoplw;./d")
+
+**Actual**: User has been signed up and an account is created. 
+**Expected**: Email should be rejected as invalid and user should not be signed up
+**Note**: the mailbox for the email address does not exist, checked on https://verifalia.com/validate-email
+
+### Bug 3: Misleading Price Change During Checkout
+**Issue**: Price in initial hosting/domain listing doesn't match checkout total due to auto-selected long-term plans
+
+**Steps to Reproduce**:
+1. Go to https://www.hostinger.com
+2. Click Start Now or choose a Hosting plan (e.g., "Premium Web Hosting")
+3. Note the advertised price on the plan page (e.g., $2.99/month)
+4. Click Add to cart / Select
+5. On the checkout page, observe the default selection is 48 months (not clearly highlighted)
+6. Click the dropdown and change to 1 month → see how the price increases to $11.99/mo
+
+**Actual**: Initial price shown is $2.99/month, but actual total is much higher if billing cycle isn't noticed
+**Expected**: Price per month should be the same as advertised on plan page - $2.99/month
+
+
+// =============================================================================
+// 2. API TESTING TASK - Changing Customer Information (Name & Surname)
+// =============================================================================
+
+## 2.1 Test Cases to Execute
+
+### Valid Data Test Cases
+- [VALID] Change name
+- [VALID] Change surname
+- [VALID] Change name and surname
+
+### Invalid Data Test Cases
+- [INVALID] Spaces in name and surname fields, before and after them
+- [INVALID] Empty fields (name and surname)
+- [INVALID] Lowercase and uppercase letters should be treated the same
+- [INVALID] SQL injection like (' OR '1'='1)
+- [INVALID] Too long names
+- [INVALID] Invalid format (numbers instead of letters)
+- [INVALID] Script tags
+- [INVALID] Special symbols
+- [INVALID] Invalid authorization token
+- [INVALID] No authorization header provided
+- [INVALID] Expired JWT token
+
+### Additional Test Cases
+- [CONCURRENCY] Two requests launched at the same time (data corruption or conflicts)
+- [GET] Can I GET the updated name/surname
+- [DELETE] Can I DELETE updated name/surname
+
+## 2.2 Risk Identification
+
+**Potential Risks if Bugs Left Unfixed**:
+- Invalid user data
+- Data loss
+- XSS or SQL injection attacks if no suitable data validation and sanitization
+- Invalid password validation may allow change user data without authorization
+- Security leakage if endpoint returns too much data
+
+## 2.3 Required Headers
+
+**Must Have Headers**:
+- `Authorization: Bearer <token>` - without it should reject request with 401 or 403
+- `Content-Type: application/json;charset=UTF-8` - format of request body for the server
+- `Accept: application/json` - for the server to know which format of response to expect
+
+// =============================================================================
+// 3. AUTOMATION TASK
+// =============================================================================
+
+## 3.1 Prerequisites
+
+```bash
+npm install
+npx playwright install
+```
+
+## 3.2 Additional Test Scenarios
+
+```javascript
+test.skip("user cannot apply invalid discount code", async ({ page }) => {
+  // Apply invalid code and verify error message
+});
+
+test.skip("user cannot checkout with empty cart", async ({ page }) => {
+  // Try to checkout without items
+});
+
+test.skip("user can add multiple products to cart", async ({ page }) => {
+  // Add 2+ products and verify totals
+});
+```
+
+// =============================================================================
+// END OF DOCUMENTATION
+// =============================================================================
